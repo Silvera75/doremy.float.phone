@@ -1031,8 +1031,10 @@
 /* 更窄视口（≤373px）：按 390px 设计稿整体等比缩放（格 66→16.92vw、
    距 20→5.13vw、图标 58→14.87vw、dock 354→90.77vw），窄屏呈现与正常
    手机完全相同的比例观感，无多余留白；网格/dock 同源，天然对齐。
-   ≥374px 不受影响。 */
-@media (max-width: 373px) and (hover: none) and (pointer: coarse) {
+   ≥374px 不受影响。
+   条件只用视口宽度：部分 Android WebView（如华为机型）会把 pointer/hover
+   误报为 fine/hover，带上它们会导致窄屏设备永远拿不到手机版布局。 */
+@media (max-width: 373px) {
   .icon-grid,
   .dock {
     --slot-size: 16.92vw;
@@ -1054,9 +1056,13 @@
   }
 }
 
-/* ── Mobile responsive ── */
+/* ── Mobile responsive ──
+   全屏铺满的判定条件只用视口宽度（≤500px），不再要求 hover:none / pointer:coarse。
+   原因：部分 Android WebView（华为等 OEM）把主指针误报为 fine/hover，导致窄屏真机
+   永远匹配不到这一段，页面退回「桌面版」（92vw 容器 + 390px 固定宽模拟手机），
+   模拟屏幕比真实视口宽，右侧被裁掉。宽度是唯一在真机/壳 WebView 里都可靠的信号。 */
 
-@media (max-width: 500px) and (hover: none) and (pointer: coarse) {
+@media (max-width: 500px) {
 
   /* 用户在设置里显式开启「显示系统状态栏」且运行时不在全屏时，控制器才会挂
      data-pwa-display-mode 标记（见 pwa-manifest-injector）：此时所有 App 共用系统
