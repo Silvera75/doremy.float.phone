@@ -1145,6 +1145,37 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
   }, []);
   useAndroidCaretKeyboardLift();
   useAndroidNativeKeyboardViewport();
+
+  // ── 壳环境适配：让 .phone-shell-wrap 的 --status-bar-drop 归位 ──
+  // 壳已用 decorFitsSystemWindows=false + enableDisplayCutoutCover + hideSystemStatusBar
+  // 让 WebView 从物理屏顶 (0,0) 开始画。此时再上移 status-bar-drop 会把虚拟手机
+  // 顶部裁掉一截，所以在壳环境里强制为 0，忽略用户设置。
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    // AndroidShell 接口是壳唯一可靠标记（壳已在 onCreate 里挂了 @JavascriptInterface）
+    const shellBridge = (window as unknown as { AndroidShell?: { getVersion?: () => string } }).AndroidShell;
+    if (!shellBridge?.getVersion) return;
+
+    const apply = () => {
+      const wrap = document.querySelector<HTMLElement>(".phone-shell-wrap");
+      if (wrap) wrap.style.setProperty("--status-bar-drop", "0px", "important");
+    };
+    apply();
+    // 壳注入 CSS 变量是异步的（evaluateJavascript），多等几次直到生效
+    const timers = [50, 200, 600, 1500].map(d => window.setTimeout(apply, d));
+    const onStatusBarEvt = () => apply();
+    window.addEventListener("floatshell-statusbarheight", onStatusBarEvt);
+    // 用户在设置面板手动改了 status-bar-drop 后，壳环境里再拉回去
+    const mo = new MutationObserver(apply);
+    const wrap = document.querySelector<HTMLElement>(".phone-shell-wrap");
+    if (wrap) mo.observe(wrap, { attributes: true, attributeFilter: ["style"] });
+    return () => {
+      timers.forEach(t => window.clearTimeout(t));
+      window.removeEventListener("floatshell-statusbarheight", onStatusBarEvt);
+      mo.disconnect();
+    };
+  }, []);
+
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [layout, setLayout] = useState<DesktopLayout>(DEFAULT_LAYOUT);
   // Dock is an ordered icon-id list (max DOCK_MAX), kept disjoint from `layout`.

@@ -1084,21 +1084,27 @@
   }
 
   :root {
+    /* 屏幕尺寸由 JS hook 主导：Android 上 useAndroidNativeKeyboardViewport 会把
+       --phone-screen-height 实时同步为 window.innerHeight（键盘弹出时自动变矮），
+       让虚拟手机整体缩到键盘上方、输入栏 bottom:0 自然贴住键盘顶。
+       媒体查询值只作为无 JS / 不支持 interactive-widget 环境的兜底。
+       用 100dvh 代替 100lvh：dynamic viewport 在键盘弹出/地址栏伸缩时自动更新，
+       老 WebView 即便没有 resizes-content 也能靠 dvh 获得正确高度。 */
     --phone-screen-width: 100vw;
-    --phone-screen-height: 100lvh;
+    --phone-screen-height: 100dvh;
   }
 
   html,
   body {
     overflow: hidden;
     width: 100%;
-    height: 100lvh;
+    height: 100dvh;
     background: var(--c-page-body-bg);
   }
 
   .app-root {
     width: 100vw;
-    height: 100lvh;
+    height: 100dvh;
     padding: 0;
     display: flex;
     justify-content: flex-start;
@@ -1124,6 +1130,11 @@
        .app-root 被裁掉，底部栏随之顶回可视区。上移量可在「状态栏」弹窗里按设备调节，
        让它约等于真实状态栏高度即可铺满。0 = 不上移（iOS 等能全屏的浏览器保持 0）。 */
     margin-top: calc(-1 * var(--status-bar-drop, 0px));
+    /* 键盘抬升：仅在 interactive-widget=resizes-content 不生效的环境下由
+       useAndroidCaretKeyboardLift 设置 --mobile-keyboard-lift 兜底。
+       现代 WebView / 壳里 interactive-widget 生效时 nativeKbResize 标记为 1，
+       JS hook 会把 --mobile-keyboard-lift 归 0（见 desktop-shell.tsx 互斥逻辑），
+       改由 --phone-screen-height 整体变矮让虚拟手机贴住键盘。 */
     transform: translate3d(0, calc(-1 * var(--mobile-keyboard-lift, 0px)), 0);
     /* 移除 transform 过渡动画：Android 键盘弹出后该过渡会让 .phone-shell-wrap 在
        点击交互期间持续移动（pointerdown→pointerup 间按钮被顶走数十像素），导致
@@ -1157,7 +1168,7 @@
 
   .app-root.splash-root {
     width: 100vw;
-    height: 100lvh;
+    height: 100dvh;
     margin: 0;
     padding: 0;
     display: flex;
