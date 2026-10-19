@@ -1156,9 +1156,23 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
     const shellBridge = (window as unknown as { AndroidShell?: { getVersion?: () => string } }).AndroidShell;
     if (!shellBridge?.getVersion) return;
 
+    const TARGET_DROP = "0px";
     const apply = () => {
       const wrap = document.querySelector<HTMLElement>(".phone-shell-wrap");
-      if (wrap) wrap.style.setProperty("--status-bar-drop", "0px", "important");
+      if (!wrap) return;
+      // 幂等 + 切断自观察死循环：这里 observe 的就是 wrap 的 style，
+      // 回调里又去改同一个 style。若引擎没有对「写入相同值」做去重（部分 OEM
+      // 老 WebView 会把同值 setProperty 也算一次 style 变更），就会形成
+      // 「改 style → 触发 observer → 再改 style」的微任务死循环，饿死主线程：
+      // 表现为页面点不动、Clock 的 setInterval 不再触发（时钟停跳）。
+      // 只在当前行内值还不是目标值时才写，保证最多写一次。
+      if (
+        wrap.style.getPropertyValue("--status-bar-drop") === TARGET_DROP &&
+        wrap.style.getPropertyPriority("--status-bar-drop") === "important"
+      ) {
+        return;
+      }
+      wrap.style.setProperty("--status-bar-drop", TARGET_DROP, "important");
     };
     apply();
     // 壳注入 CSS 变量是异步的（evaluateJavascript），多等几次直到生效
