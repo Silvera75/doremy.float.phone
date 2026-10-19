@@ -76,6 +76,9 @@ class MainActivity : AppCompatActivity() {
     @Volatile
     private var statusBarHeightCssPx: Int = 0
 
+    /** 当前键盘（IME）高度（物理像素），0 = 键盘收起；用于给 WebView 让出底部空间。 */
+    private var imeInsetPx: Int = 0
+
     /** 网页消息通知的自增 id：同一条消息覆盖同一 id 会让新通知顶掉旧的，故逐条递增。 */
     private var webNotifId = 500
 
@@ -269,8 +272,8 @@ class MainActivity : AppCompatActivity() {
             )
         }
         setContentView(rootContainer)
-        // 挂上 insets 监听：壳唯一还管的是状态栏高度注入（键盘避让已交给前端）。
-        // 必须在 setContentView 之后，此时 decorView 已初始化才能正常派发回调。
+        // 挂上 insets 监听：状态栏高度注入 + 键盘避让都靠它。必须在 setContentView 之后，
+        // 此时 rootContainer 已初始化，监听回调里才能安全地给它设内边距。
         observeWindowInsets()
         // 首帧主动请求一次 insets，确保启动即拿到状态栏高度（部分机型不会自动派发首次回调）。
         ViewCompat.requestApplyInsets(rootContainer)
@@ -412,8 +415,8 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 隐藏系统状态栏（沉浸式）：页面自带虚拟状态栏，系统那条纯属多余。
-     * decorFitsSystemWindows=false + enableDisplayCutoutCover() 后 WebView 直接铺满物理屏，
-     * 不再有系统栏挤占可视区；键盘避让已交给前端 interactive-widget 机制。
+     * decorFitsSystemWindows=false 时 WebView 本就铺满全屏，这里只负责隐掉系统状态栏那一条；
+     * 键盘避让改由 observeWindowInsets() 里的 IME 内边距接管。
      * 从屏幕顶部下滑可临时唤出系统状态栏，松手自动再隐藏。
      */
     /**
@@ -459,13 +462,15 @@ class MainActivity : AppCompatActivity() {
                 injectStatusBarHeight()
             }
 
-            // 键盘避让已完全交给前端处理：
-            //   1) 壳不再给 rootContainer 加 bottom padding——否则 WebView 高度会被壳的 padding
-            //      和前端 interactive-widget=resizes-content 双重挤压，虚拟手机被挤扁。
-            //   2) 前端 useAndroidNativeKeyboardViewport 监听 window.innerHeight 变化，把
-            //      --phone-screen-height 实时同步，虚拟手机整体变矮，输入栏天然贴在键盘上。
-            //   3) 旧 WebView 不支持 resizes-content 时，前端 useAndroidCaretKeyboardLift
-            //      会走 visualViewport 手动抬升兜底，两套不会叠加（靠 nativeKbResize 标记互斥）。
+            // 键盘避让：setDecorFitsSystemWindows(false) 后 adjustResize 不再由系统代劳，
+            // 网页侧 interactiveWidget("resizes-content") 在 WebView 里同样不生效，
+            // 于是输入框被键盘盖住。这里把 IME 高度写成容器底部内边距，WebView 变矮，
+            // 网页 resize 后输入栏自然贴在键盘上方。
+            val imePx = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            if (imePx != imeInsetPx) {
+                imeInsetPx = imePx
+                if (::rootContainer.isInitialized) rootContainer.setPadding(0, 0, 0, imePx)
+            }
             insets
         }
     }
